@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: posture-detection-app
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    env: python
+    python:
+      version: 3.9.16  # Choose a Python version (Render supports 3.7+)
