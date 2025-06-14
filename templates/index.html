@@ -6,14 +6,32 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 20px; }
+        #webcam { border: 2px solid #333; border-radius: 8px; }
+        #startButton { 
+            padding: 10px 20px; 
+            background: #4CAF50; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer;
+            margin: 10px;
+        }
+    </style>
 </head>
 <body>
     <h1>Posture Detection</h1>
-    <video id="webcam" width="640" height="480" autoplay></video>
+    <video id="webcam" width="640" height="480" autoplay></video><br>
     <button id="startButton">Start Detection</button>
+
+    <!-- Audio alert (hidden) -->
+    <audio id="alertSound" src="https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3" preload="auto"></audio>
+
     <script>
         const videoElement = document.getElementById('webcam');
         const startButton = document.getElementById('startButton');
+        const alertSound = document.getElementById('alertSound');
         let poseDetectionActive = false;
         let lastAlertTime = 0;
 
@@ -29,14 +47,33 @@
             minTrackingConfidence: 0.5
         });
 
+        // Request notification permissions on startup
+        if (Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+
+        // Play alert sound + show notification
+        function triggerAlerts() {
+            // Play sound
+            alertSound.currentTime = 0; // Reset audio to start
+            alertSound.play().catch(e => console.log("Audio blocked:", e));
+
+            // Show notification (if permitted)
+            if (Notification.permission === "granted") {
+                new Notification("⚠️ Posture Alert!", {
+                    body: "You're slouching! Sit straight.",
+                    icon: "https://cdn-icons-png.flaticon.com/512/753/753345.png"
+                });
+            }
+        }
+
         pose.onResults((results) => {
             if (!poseDetectionActive) return;
 
-            // Get key points (simplified)
             if (results.poseLandmarks) {
-                const leftShoulder = results.poseLandmarks[11];  // MediaPipe landmark index
-                const rightShoulder = results.poseLandmarks[12];
-                const leftEar = results.poseLandmarks[7];
+                const landmarks = results.poseLandmarks;
+                const leftShoulder = landmarks[11]; // MediaPipe landmarks
+                const leftEar = landmarks[7];
 
                 // Calculate neck angle (simplified)
                 const neckAngle = Math.atan2(
@@ -44,11 +81,11 @@
                     leftEar.x - leftShoulder.x
                 ) * (180 / Math.PI);
 
-                // Bad posture check (adjust thresholds)
+                // Bad posture check (threshold: <160 degrees)
                 if (neckAngle < 160) {
                     const now = Date.now();
-                    if (now - lastAlertTime > 10000) {  // 10-second cooldown
-                        alert("⚠️ Bad Posture! Sit straight!");
+                    if (now - lastAlertTime > 10000) { // 10-second cooldown
+                        triggerAlerts();
                         lastAlertTime = now;
                     }
                 }
@@ -59,6 +96,7 @@
         startButton.addEventListener('click', () => {
             poseDetectionActive = !poseDetectionActive;
             startButton.textContent = poseDetectionActive ? "Stop Detection" : "Start Detection";
+            startButton.style.background = poseDetectionActive ? "#f44336" : "#4CAF50";
         });
 
         // Start webcam
