@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Posture Detection App</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+</head>
+<body>
+    <h1>Posture Detection</h1>
+    <video id="webcam" width="640" height="480" autoplay></video>
+    <button id="startButton">Start Detection</button>
+    <script>
+        const videoElement = document.getElementById('webcam');
+        const startButton = document.getElementById('startButton');
+        let poseDetectionActive = false;
+        let lastAlertTime = 0;
+
+        // Initialize MediaPipe Pose
+        const pose = new Pose({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+
+        pose.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        pose.onResults((results) => {
+            if (!poseDetectionActive) return;
+
+            // Get key points (simplified)
+            if (results.poseLandmarks) {
+                const leftShoulder = results.poseLandmarks[11];  // MediaPipe landmark index
+                const rightShoulder = results.poseLandmarks[12];
+                const leftEar = results.poseLandmarks[7];
+
+                // Calculate neck angle (simplified)
+                const neckAngle = Math.atan2(
+                    leftEar.y - leftShoulder.y,
+                    leftEar.x - leftShoulder.x
+                ) * (180 / Math.PI);
+
+                // Bad posture check (adjust thresholds)
+                if (neckAngle < 160) {
+                    const now = Date.now();
+                    if (now - lastAlertTime > 10000) {  // 10-second cooldown
+                        alert("⚠️ Bad Posture! Sit straight!");
+                        lastAlertTime = now;
+                    }
+                }
+            }
+        });
+
+        // Start/Stop detection
+        startButton.addEventListener('click', () => {
+            poseDetectionActive = !poseDetectionActive;
+            startButton.textContent = poseDetectionActive ? "Stop Detection" : "Start Detection";
+        });
+
+        // Start webcam
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                if (poseDetectionActive) {
+                    await pose.send({ image: videoElement });
+                }
+            },
+            width: 640,
+            height: 480
+        });
+        camera.start();
+    </script>
+</body>
+</html>
